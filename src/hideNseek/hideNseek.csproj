@@ -89,6 +89,7 @@
     <Content Include="Assets\Logo\Logo-71.png" />
     <Content Include="Assets\Logo\Logo-Wide150.png" />
     <Content Include="Assets\Logo\Logo-Wide300.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.scale-200.png" />
     <Content Include="Properties\Default.rd.xml" />
   </ItemGroup>
   <ItemGroup>
