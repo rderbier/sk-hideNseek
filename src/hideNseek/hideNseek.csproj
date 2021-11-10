@@ -17,7 +17,15 @@
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
     <WindowsXamlEnableOverview>true</WindowsXamlEnableOverview>
-    <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled>
+    <AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
+    <GenerateAppInstallerFile>False</GenerateAppInstallerFile>
+    <AppxAutoIncrementPackageRevision>False</AppxAutoIncrementPackageRevision>
+    <GenerateTestArtifacts>True</GenerateTestArtifacts>
+    <AppxBundle>Always</AppxBundle>
+    <AppxBundlePlatforms>arm64</AppxBundlePlatforms>
+    <HoursBetweenUpdateChecks>0</HoursBetweenUpdateChecks>
+    <PackageCertificateThumbprint>A2CBA9BA5BA67F07CF1F8FDE4F4033B06CF725E0</PackageCertificateThumbprint>
+    <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|ARM64'">
     <DebugSymbols>true</DebugSymbols>
@@ -71,6 +79,8 @@
     <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Game.cs" />
+    <Compile Include="MeshUtils.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -81,15 +91,82 @@
   </ItemGroup>
   <ItemGroup>
     <SKShader Include="Assets\floor.hlsl" />
+    <Content Include="Assets\applause.wav" />
+    <Content Include="Assets\BlipNoise.wav" />
+    <Content Include="Assets\Logo\hideNseek-44.png" />
+    <Content Include="Assets\Logo\hideNseek-71.png" />
+    <Content Include="Assets\Logo\hideNseek-88.png" />
     <Content Include="Assets\Logo\Logo-150.png" />
+    <Content Include="Assets\Logo\Logo-150.scale-100.png" />
+    <Content Include="Assets\Logo\Logo-150.scale-125.png" />
+    <Content Include="Assets\Logo\Logo-150.scale-150.png" />
+    <Content Include="Assets\Logo\Logo-150.scale-200.png" />
+    <Content Include="Assets\Logo\Logo-150.scale-400.png" />
     <Content Include="Assets\Logo\Logo-16.png" />
     <Content Include="Assets\Logo\Logo-310.png" />
+    <Content Include="Assets\Logo\Logo-310.scale-100.png" />
+    <Content Include="Assets\Logo\Logo-310.scale-125.png" />
+    <Content Include="Assets\Logo\Logo-310.scale-150.png" />
+    <Content Include="Assets\Logo\Logo-310.scale-200.png" />
+    <Content Include="Assets\Logo\Logo-310.scale-400.png" />
     <Content Include="Assets\Logo\Logo-44.png" />
     <Content Include="Assets\Logo\Logo-50.png" />
+    <Content Include="Assets\Logo\Logo-50.scale-100.png" />
+    <Content Include="Assets\Logo\Logo-50.scale-125.png" />
+    <Content Include="Assets\Logo\Logo-50.scale-150.png" />
+    <Content Include="Assets\Logo\Logo-50.scale-200.png" />
+    <Content Include="Assets\Logo\Logo-50.scale-400.png" />
     <Content Include="Assets\Logo\Logo-71.png" />
+    <Content Include="Assets\Logo\Logo-71.scale-100.png" />
+    <Content Include="Assets\Logo\Logo-71.scale-125.png" />
+    <Content Include="Assets\Logo\Logo-71.scale-150.png" />
+    <Content Include="Assets\Logo\Logo-71.scale-200.png" />
+    <Content Include="Assets\Logo\Logo-71.scale-400.png" />
     <Content Include="Assets\Logo\Logo-Wide150.png" />
+    <Content Include="Assets\Logo\Logo-Wide150.scale-100.png" />
+    <Content Include="Assets\Logo\Logo-Wide150.scale-125.png" />
+    <Content Include="Assets\Logo\Logo-Wide150.scale-150.png" />
+    <Content Include="Assets\Logo\Logo-Wide150.scale-200.png" />
+    <Content Include="Assets\Logo\Logo-Wide150.scale-400.png" />
     <Content Include="Assets\Logo\Logo-Wide300.png" />
+    <Content Include="Assets\Logo\Logo-Wide300.scale-100.png" />
+    <Content Include="Assets\Logo\Logo-Wide300.scale-125.png" />
+    <Content Include="Assets\Logo\Logo-Wide300.scale-150.png" />
+    <Content Include="Assets\Logo\Logo-Wide300.scale-200.png" />
+    <Content Include="Assets\Logo\Logo-Wide300.scale-400.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.altform-lightunplated_targetsize-16.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.altform-lightunplated_targetsize-24.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.altform-lightunplated_targetsize-256.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.altform-lightunplated_targetsize-32.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.altform-lightunplated_targetsize-48.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.altform-unplated_targetsize-16.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.altform-unplated_targetsize-24.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.altform-unplated_targetsize-256.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.altform-unplated_targetsize-32.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.altform-unplated_targetsize-48.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.scale-100.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.scale-125.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.scale-150.png" />
     <Content Include="Assets\Logo\Square44x44Logo.scale-200.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.scale-400.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.targetsize-16.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.targetsize-24.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.targetsize-256.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.targetsize-32.png" />
+    <Content Include="Assets\Logo\Square44x44Logo.targetsize-48.png" />
+    <Content Include="Assets\microphone.png" />
+    <Content Include="Assets\nextfind.wav" />
+    <Content Include="Assets\off.png" />
+    <Content Include="Assets\on.png" />
+    <Content Include="Assets\power.png" />
+    <Content Include="Assets\radar-sound.wav" />
+    <Content Include="Assets\sound_success.wav" />
+    <Content Include="Assets\speaker.png" />
+    <Content Include="Assets\success-2.wav" />
+    <Content Include="Assets\tofind.wav" />
+    <Content Include="Assets\trash.png" />
+    <Content Include="Assets\welldone.wav" />
+    <Content Include="Assets\win.wav" />
     <Content Include="Properties\Default.rd.xml" />
   </ItemGroup>
   <ItemGroup>
@@ -101,6 +178,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NETCore.UniversalWindowsPlatform" Version="6.2.9" />
     <PackageReference Include="StereoKit" Version="0.3.*" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Assets\compass.obj" />
+    <None Include="hideNseek_TemporaryKey.pfx" />
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '16.0' ">
     <VisualStudioVersion>16.0</VisualStudioVersion>

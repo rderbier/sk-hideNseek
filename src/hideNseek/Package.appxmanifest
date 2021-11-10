@@ -7,7 +7,7 @@
   IgnorableNamespaces="uap mp">
 
   <Identity
-    Name="a9790a7e-a8ec-4ba6-8da8-0f08a42fde0a"
+    Name="hideNSeek-package"
     Publisher="CN=rderbier"
     Version="1.0.0.0" />
 
@@ -15,7 +15,7 @@
 
   <Properties>
     <DisplayName>hideNseek</DisplayName>
-    <PublisherDisplayName>StereoKit</PublisherDisplayName>
+    <PublisherDisplayName>RDerbier</PublisherDisplayName>
     <Logo>Assets\Logo\Logo-50.png</Logo>
   </Properties>
 
@@ -49,5 +49,6 @@
   </Applications>
 
   <Capabilities>
-    <DeviceCapability Name="gazeInput"/></Capabilities>
+    <DeviceCapability Name="gazeInput"/>
+    <DeviceCapability Name="microphone"/></Capabilities>
 </Package>
