@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using StereoKit;
 using Windows.Storage;
 using Windows.Storage.Streams;
+using Newtonsoft.Json.Linq;
+using Windows.Perception.Spatial;
+using System.Threading.Tasks;
 
 namespace hideNseek
 {
+    
     class Target
     {
         public Pose pose;
@@ -18,18 +21,36 @@ namespace hideNseek
         public Sound memo;
         public Boolean isSelected; // true for the currently selected target
         public float gazeTime; // howlong this target has the gaze
+        private String anchorID;
+        private SpatialAnchor anchor;
 
-        public Target(Pose pose, Model target, float diameter, string name)
+        public Target(Pose pose, Model target, float scale, String name, ref SpatialAnchor anchor)
         {
             this.pose = new Pose(pose.position, pose.orientation);
             this.model = target;
-            this.scale = diameter;
-            this.name = name;
+            this.scale = scale;
+            
+            this.name = (name != null) ? name : "target-" + Guid.NewGuid().ToString();
+            this.anchor = anchor;
+            if (anchor != null)
+            {
+                this.anchorID = this.name;
+                anchor.RawCoordinateSystemAdjusted += this.OnCoordinateSystemAdjusted;
+            }
             this.memo = null;
             this.gazeTime = 0f;
             tryRestore();
         }
-        public Boolean isTargetDetected(float gazeDuration, Material hide, Material seen, Material selected, float distance = 2.0f, Boolean gazeIndicator = false)
+        private void OnCoordinateSystemAdjusted(SpatialAnchor sender, SpatialAnchorRawCoordinateSystemAdjustedEventArgs args)
+        {
+            if (World.FromPerceptionAnchor(this.anchor, out Pose at))
+            {
+                this.pose = at;
+            }
+
+        }
+
+        public Boolean isTargetDetected(float gazeDuration, Material hide, Material seen, Material selected, Boolean isDraggable=true, float distance = 2.0f, Boolean gazeIndicator = false)
         {
             // draw the target and detect if the target is seen
             //
@@ -72,7 +93,10 @@ namespace hideNseek
             this.model.RootNode.Material = mat;
             // draw target
             Bounds scaledBounds = new Bounds(this.model.Bounds.center, this.model.Bounds.dimensions * scale);
-            this.isHandled = UI.Handle(this.name, ref this.pose, scaledBounds);
+            if (isDraggable)
+            {
+                this.isHandled = UI.Handle(this.name, ref this.pose, scaledBounds);
+            }
             this.model.Draw(targetTransform);
             return detected;
         }
@@ -99,10 +123,74 @@ namespace hideNseek
                     {
                         await Windows.Storage.FileIO.WriteBytesAsync(memoFile, byteBuffer);
                     }
+                    // saving metadata
+                    Windows.Storage.StorageFile confiFile =
+                       await storageFolder.CreateFileAsync(
+                           "config-" + this.name + ".json",
+                    Windows.Storage.CreationCollisionOption.ReplaceExisting);
+                    //String json = String.Format("{ \"scale\":\"{0:F4}\" }", this.scale);
+                    JObject o = new JObject();
+                    o["scale"] = this.scale;
+                    await Windows.Storage.FileIO.WriteTextAsync(confiFile, o.ToString());
                 } catch (Exception ex)
                 {
                     // ignore file errors for now !
                 }
+            }
+
+        }
+        public async void clean()
+        {
+            Windows.Storage.StorageFolder storageFolder = Windows.Storage.ApplicationData.Current.LocalFolder;
+            Windows.Storage.StorageFile dataFile = await storageFolder.GetFileAsync("memo-" + this.name);
+            if (dataFile != null)
+            {
+                await dataFile.DeleteAsync();
+            }
+            Windows.Storage.StorageFile confiFile = await storageFolder.GetFileAsync("config-" + this.name + ".json");
+            if (confiFile != null)
+            {
+                await confiFile.DeleteAsync();
+            }
+
+        }
+        public void removeAnchor(SpatialAnchorStore anchorStore)
+        {
+            if (this.anchorID != null)
+            {
+                anchorStore.Remove(this.anchorID);
+                this.anchorID = null;
+            }
+        }
+        public String anchorTarget(SpatialAnchorStore anchorStore, SpatialLocator locator, SpatialStationaryFrameOfReference referenceFrame = null , SpatialAnchor originAnchor = null)
+        {
+            if (anchorStore != null)
+            {
+                // create a world locked anchor where the origin is the current position of the Hololens
+                if (referenceFrame == null)
+                {
+                    referenceFrame = locator.CreateStationaryFrameOfReferenceAtCurrentLocation();
+                }
+                if (originAnchor == null)
+                {
+                    originAnchor = SpatialAnchor.TryCreateRelativeTo(referenceFrame.CoordinateSystem);
+                }
+
+                Pose originPose = World.FromPerceptionAnchor(originAnchor);
+                Pose poseInReferenceFrame = originPose.ToMatrix().Inverse.Transform(new Pose(this.pose.position, this.pose.orientation));
+                SpatialAnchor targetAnchor = SpatialAnchor.TryCreateRelativeTo(referenceFrame.CoordinateSystem, poseInReferenceFrame.position, poseInReferenceFrame.orientation);
+
+                removeAnchor(anchorStore);
+
+                if (targetAnchor != null)
+                {
+                    anchorID = this.name;
+                    this.anchorID = anchorStore.TrySave(anchorID, targetAnchor) ? anchorID : null;
+                }
+                return this.anchorID;
+            } else
+            {
+                return null;
             }
 
         }
@@ -128,6 +216,17 @@ namespace hideNseek
                         this.memo = Sound.CreateStream((float)floatArray.Length / 48000f); // in seconds
                         this.memo.WriteSamples(floatArray);
                     }
+                }
+                Windows.Storage.StorageFile configFile = await storageFolder.GetFileAsync("config-" + this.name+".json");
+                if (configFile != null)
+                {
+                    string text = await Windows.Storage.FileIO.ReadTextAsync(configFile);
+                    var details = JObject.Parse(text);
+                    if (details["scale"]!= null)
+                    {
+                        this.scale = (float)details["scale"];
+                    }
+                    
                 }
             } catch (Exception e)
             {
@@ -156,23 +255,50 @@ namespace hideNseek
         private String promptState;
         private Target currentTarget;
         private float[] micBuffer;
-        private Single[] soundChunk;
+        private float[] soundChunk;
         private Int32 micIndex;
-        private Sound memo;
         private Sprite powerSprite, micSprite, trashSprite, speakerSprite, onSprite, offSprite;
         private Model compass;
         private Boolean playing = false;
         private Double huntingDuration = 0f;
-        private int debugRound;
-        private float debugTime;
+        private SpatialAnchorStore anchorStore;
+        private SpatialLocator locator;
+
+        private void tryRestoreAnchors()
+        {
+            
+            IReadOnlyDictionary<string, SpatialAnchor> anchors = anchorStore.GetAllSavedAnchors();
+            
+            foreach (KeyValuePair<string, SpatialAnchor> anchor in anchors)
+            {
+
+                if (World.FromPerceptionAnchor(anchor.Value, out Pose at))
+                {
+                    addTarget(at, targetDiameter, anchor.Key, anchor.Value);                            
+                }
+            }
+
+        }
+        private async Task InitStoreAsync()
+        {
+            locator = SpatialLocator.GetDefault();
+            anchorStore = await SpatialAnchorManager.RequestStoreAsync();
+            if (anchorStore != null)
+            {
+                tryRestoreAnchors();
+            }
+        }
 
         public Game()
         {
             
             // Create assets used by the game
             micBuffer = new float[MAX_SOUND_LENGTH]; // 5 seconds
-            soundChunk = new Single[24000]; // 0.5 second max
+            soundChunk = new float[MAX_SOUND_LENGTH]; // 0.5 second max
             micIndex = 0;
+
+            
+
             targetMaterial = Default.Material.Copy(); //matAlphaBlend
             targetMaterial.Transparency = Transparency.Blend;
             targetMaterial.DepthWrite = false;
@@ -195,8 +321,8 @@ namespace hideNseek
             invisibleMaterial = Default.Material.Copy(); //matAlphaBlend
             invisibleMaterial.Transparency = Transparency.Blend;
             invisibleMaterial.DepthWrite = false;
-            invisibleMaterial[MatParamName.ColorTint] = new Color(0, 0, 0, 1f);
-            invisibleMaterial.Wireframe = true;
+            invisibleMaterial[MatParamName.ColorTint] = new Color(0, 0, 0, 0.0f);
+            invisibleMaterial.Wireframe = false;
 
             hintMaterial = Default.Material.Copy(); //matAlphaBlend
             hintMaterial.Transparency = Transparency.Blend;
@@ -223,15 +349,18 @@ namespace hideNseek
             adminMode();
 
             // init UI
-            Microphone.Start();
-            Microphone.Stop();
+            
 
             // set UI scheme
             Color uiColor = Color.HSV(.83f, 0.33f, 1f, 0.8f);
             UI.ColorScheme = uiColor;
 
-        }
+            World.OcclusionEnabled = true;
+            InitStoreAsync();
+            
 
+        }
+        
 
         public void clear()
         {
@@ -263,11 +392,19 @@ namespace hideNseek
                 target.isDetected = false;
             }
         }
-        public void save()
+        public async void  save()
         {
             foreach (var target in this.targetList)
             {
-                target.saveAsync();
+                 target.saveAsync();
+            }
+            // create a world locked anchor where the origin is the current position of the Hololens
+            SpatialStationaryFrameOfReference referenceFrame = locator.CreateStationaryFrameOfReferenceAtCurrentLocation();
+            SpatialAnchor originAnchor = SpatialAnchor.TryCreateRelativeTo(referenceFrame.CoordinateSystem);
+            
+            foreach (var target in this.targetList)
+            {
+                target.anchorTarget(anchorStore, locator, referenceFrame, originAnchor);        
             }
         }
         public void targetDetected(Target target)
@@ -354,117 +491,76 @@ namespace hideNseek
             this.currentTarget = null;
             mode = Game.USER_MODE;
         }
-        public void addTarget(Pose pose, float diameter)
+        public void addTarget(Pose pose, float diameter, String name = null,  SpatialAnchor anchor = null)
         {
             Model target = Model.FromMesh(
                 //Mesh.GenerateRoundedCube(Vec3.One * 0.1f, 0.02f),
                 Mesh.GenerateSphere(1.0f),
                 targetMaterial);
-            string name = "target-" + targetList.Count;
-            Target t = new Target(pose, target, diameter, name);
+            Target t = new Target(pose, target, diameter, name, ref anchor);
             targetList.Add(t);
             currentTarget = t;
         }
-        public void deleteCurrentTarget()
-        {         
-            targetList.Remove(currentTarget);
+        public  void deleteCurrentTarget()
+        {
+            if (currentTarget != null)
+            {
+                currentTarget.removeAnchor(anchorStore);
+                currentTarget.clean();
+                targetList.Remove(currentTarget);
+            }
             currentTarget = null;
         }
         private void stopRecording(Target target)
         {
             Microphone.Stop();
-            target.memo = Sound.CreateStream((float)micIndex / 24000f);
-            target.memo.WriteSamples(micBuffer, micIndex);
-
-            //target.memo = Sound.Generate((t) =>
-            //{
-            //    int index = (int)(t * 48000f);
-            //    return (index < micIndex) ? micBuffer[index] : 0;
-            //},
-            //micIndex / 48000f
-            //);
+            if (target != null)
+            {
+                target.memo = Sound.CreateStream((float)micIndex / 24000f);
+                target.memo.WriteSamples(micBuffer, micIndex);
+            }
 
         }
-        private void handleRecording(Target target)
-        {
-            // UI.Text("Recording " + Microphone.IsRecording);
-            // UI.Text("Samples " + Microphone.Sound.TotalSamples);
-            // UI.Text("Unread " + Microphone.Sound.UnreadSamples);
-            //  UI.Text("index " + micIndex);
-            int samples = 0;
-            if (Microphone.Sound.UnreadSamples > 0)
-            {
-                samples = Microphone.Sound.ReadSamples(ref soundChunk);
-            }
-            if (Microphone.IsRecording)
-            {
-                if (UI.ButtonRound("StopRecord", micSprite))
-                {
-                    stopRecording(target);
-                }
-                UI.SameLine(); UI.Label("Stop recording");
-
         
-
-                // Read data from the microphone stream into our buffer, and track 
-                // how much was actually read. Since the mic data collection runs in
-                // a separate thread, this will often be a little inconsistent. Some
-                // frames will have nothing ready, and others may have a lot!
-                if (samples > 0)
+        private void handleRecording()
+        {
+            int samples = 0;
+            
+            if (Microphone.IsRecording)
+            {   
+                int unread = Microphone.Sound.UnreadSamples;
+                if (unread > 0)
                 {
-                    
+                    // trying to workaround an issue when using the microphone
+                    // seems that sometimes the ReadSamples does not change the Sound buffer index !
+                    // so repeat the read untill it seems to work !
+                    do
+                    {
+                        samples = Microphone.Sound.ReadSamples(ref soundChunk);
+                    } while (Microphone.Sound.UnreadSamples > 48);
+
+                }
+              
+                if (samples > 0)
+                {             
                     int i = 0;
                     while ((micIndex < MAX_SOUND_LENGTH) && (i < samples))
                     {
                         micBuffer[micIndex] = soundChunk[i];
                         i += 1;
                         micIndex += 1;
-                    }
-                    
+                    }                   
                 }
                 if (micIndex >= MAX_SOUND_LENGTH)
                 {
-                    stopRecording(target);
+                    stopRecording(currentTarget);
                 }
             }
-            else
-            {
-                if (UI.ButtonRound("StartRecord", micSprite))
-                {
-                    micIndex = 0;
-                    Microphone.Start();
-                }
-                UI.SameLine(); UI.Label("record a short name");
-                if (target.memo != null)
-                {
-                    if (UI.ButtonRound("Playback", speakerSprite))
-                    {
-                        target.memo.Play(Input.Head.position + 0.5f * Input.Head.Forward); // 
-                    }
-                    UI.SameLine();UI.Label("Play");
-                }
-                /*
-                 if (target.memo != null) {
-                    UI.Text("Duration " + target.memo.Duration);
-                    UI.Text("Samples " + target.memo.TotalSamples);
-                    UI.Text("Unread " + target.memo.UnreadSamples);
-                }
-                */
-                
-                 
-                    
-                
-            }
-         
-
-
         }
         public Boolean Step()
         {
             Boolean running = true;
             // test each target
-
-            
 
             if (Game.ADMIN_MODE == mode)
             {
@@ -486,7 +582,8 @@ namespace hideNseek
                     {
                         m = hintMaterial;
                     }
-                    if (currentTarget.isTargetDetected(1.5f, m, m, m, Game.TARGET_MIN_DISTANCE, true))
+                    // detect after gaze for 1.2 s 
+                    if (currentTarget.isTargetDetected(1.2f, m, m, m, false, Game.TARGET_MIN_DISTANCE, true))
                     {
                         targetSelected(currentTarget);
                         targetDetected(currentTarget);
@@ -495,6 +592,10 @@ namespace hideNseek
                 }
             }
 
+            // Recording
+
+            handleRecording();
+            //
             // Target config UI panel
             //
             if ((Game.ADMIN_MODE == mode) && (currentTarget != null) && !currentTarget.isHandled)
@@ -508,7 +609,34 @@ namespace hideNseek
                 UI.Label("size");
                 UI.SameLine();
                 UI.HSlider("size", ref currentTarget.scale, 0.05f, .3f, 0, 10 * U.cm);
-                handleRecording(currentTarget);
+                
+                if (Microphone.IsRecording)
+                {
+                    if (UI.ButtonRound("StopRecord", micSprite))
+                    {
+                        stopRecording(currentTarget);
+                    }
+                    UI.SameLine(); UI.Label("Stop recording");
+
+                }
+                else
+                {
+                    if (UI.ButtonRound("StartRecord", micSprite))
+                    {
+                        micIndex = 0;
+                        Microphone.Start();
+                    }
+                    UI.SameLine(); UI.Label("record a short name");
+                    if (currentTarget.memo != null)
+                    {
+                        if (UI.ButtonRound("Playback", speakerSprite))
+                        {
+                            currentTarget.memo.Play(Input.Head.position + 0.5f * Input.Head.Forward); // 
+                        }
+                        UI.SameLine(); UI.Label("Play");
+                    }
+                  
+                }
                 UI.NextLine();
                 UI.NextLine(); 
                 if (UI.ButtonRound("trash", trashSprite))
@@ -519,7 +647,7 @@ namespace hideNseek
                 UI.WindowEnd();
 
             }
-
+           
             // User voice prompts
             // wait for prompt to finish to play the memo of the target
             switch (promptState)
@@ -558,13 +686,60 @@ namespace hideNseek
                 compass.Draw(compassPose.ToMatrix());
             }
 
-
-
-
             // User panel 
             // no draggable in user mode
 
+            displayUserPanel();
+            // 
+            // ADMIN UI
+            //
+            if (Game.ADMIN_MODE == mode)
+            {
+                running = displayAdminPanel();
+            }
 
+            return running;
+        }
+        private Boolean displayAdminPanel()
+        {
+            Boolean running = true;
+            UI.WindowBegin("Game Admin", ref this.windowAdminPose, new Vec2(25, 0) * U.cm, UIWin.Normal);
+            UI.Text("You are in design mode. Find interresting objects in the surrounding and place 'AR targets' on them. ");
+            int ntarget = targetList.Count;
+            UI.Text("You have added " + ntarget + " points of interest" + ((ntarget > 1) ? "s." : "."));
+            if (isMemoRecorded())
+            {
+                if (UI.Button("Add target"))
+                {
+                    Pose targetPose = new Pose(this.windowAdminPose.position + Vec3.Cross(Vec3.Up, this.windowAdminPose.Forward) * 30 * U.cm, Quat.Identity);
+
+                    // TO DO : create a target just next to the Admin panel 
+                    addTarget(targetPose, targetDiameter);
+                }
+                if ((targetList.Count > 0) && UI.Button("Switch to 'Play' mode"))
+                {
+                    userMode();
+                }
+            }
+            else
+            {
+                UI.Text("Record a name for each point of interest before adding a new one.");
+            }
+
+
+
+            if (UI.Button("Save targets"))
+            {
+                save();
+            }
+            UI.NextLine();
+            if (UI.ButtonRound("Exit", powerSprite)) running = false;
+            UI.SameLine(); UI.Label("Exit Game");
+            UI.WindowEnd();
+            return running;
+        }
+        private void displayUserPanel()
+        {
             if (Game.ADMIN_MODE == mode)
             {
                 UI.WindowBegin("Hunting board", ref this.windowUserPose, new Vec2(25, 0) * U.cm, UIWin.Normal);
@@ -579,7 +754,7 @@ namespace hideNseek
 
             if (isFinished())
             {
-                UI.Text("Well done, you find all the hidden gems in this room !");
+                UI.Text("Well done, you have found all the points of interest in this room !");
                 UI.Label("Your time : ");
                 UI.SameLine();
                 int minutes = (int)huntingDuration / 60;
@@ -590,14 +765,14 @@ namespace hideNseek
             }
             else
             {
-                UI.Text("There are some interresting things in this room. Look around. Could you spot them ?");
+                UI.Text("There are some interresting things in this room. Look around. Can you spot them ?");
                 int ntarget = remaingTargetCount();
                 UI.NextLine();
-                UI.Text("You have to find " + ntarget + " target" + ((ntarget > 1) ? "s." : "."));
+                UI.Text("You have to find " + ntarget + " object" + ((ntarget > 1) ? "s." : "."));
 
                 if (playing)
                 {
-                        huntingDuration += Time.Elapsedf;
+                    huntingDuration += Time.Elapsedf;
                 }
             }
             if (!playing)
@@ -614,23 +789,23 @@ namespace hideNseek
                     promptInstruction();
                 }
                 // display time spent 
-               
+
                 int minutes = (int)huntingDuration / 60;
                 int seconds = (int)huntingDuration % 60;
 
                 UI.HSeparator();
-                String timer = minutes.ToString("00")+":"+seconds.ToString("00");
+                String timer = minutes.ToString("00") + ":" + seconds.ToString("00");
                 UI.Text(timer, TextAlign.BottomCenter);
-               
+
             }
 
             UI.HSeparator();
             UI.Text("Need some help? You can activate some clues...");
-            
+
             String helpLabelSound = useSound ? "sound on" : "sound off";
             Sprite soundSprite = useSound ? onSprite : offSprite;
             if (UI.ButtonRound("StopRecord", soundSprite)) { useSound = !useSound; }
-            UI.SameLine();UI.Label("Sound");
+            UI.SameLine(); UI.Label("Sound");
 
 
             Sprite visualSprite = useIndicator ? onSprite : offSprite;
@@ -646,54 +821,13 @@ namespace hideNseek
 
             if (UI.ButtonRound("Abort mission", powerSprite))
             {
+                playing = false;
+                huntingDuration = 0;
                 adminMode();
             }
             UI.SameLine(); UI.Label("Abort mission");
 
             UI.WindowEnd();
-            // 
-            // ADMIN UI
-            //
-            if (Game.ADMIN_MODE == mode)
-            {
-                UI.WindowBegin("Game Admin", ref this.windowAdminPose, new Vec2(25, 0) * U.cm, UIWin.Normal);
-                UI.Text("You are in design mode. Find interresting objects in the surrounding and place 'AR targets' on them. ");
-                int ntarget = targetList.Count;
-                UI.Text("You have added "+ntarget+" target"+((ntarget > 1) ? "s." : "." ));
-                if (isMemoRecorded())
-                {
-                    if (UI.Button("Add target"))
-                    {
-                        Pose targetPose = new Pose(this.windowAdminPose.position + Vec3.Cross(Vec3.Up, this.windowAdminPose.Forward) * 30 * U.cm, Quat.Identity);
-
-                        // TO DO : create a target just next to the Admin panel 
-                        addTarget(targetPose, targetDiameter);
-                    }
-                    if ((targetList.Count > 0) && UI.Button("Switch to 'Play' mode"))
-                    {
-                        userMode();
-                    }
-                }
-                else
-                {
-                    UI.Text("Please record a name for each target before adding a new one.");
-                }
-
-
-
-                if(UI.Button("Save targets"))
-                {
-                    save();
-                }
-                UI.NextLine();
-                if (UI.ButtonRound("Exit", powerSprite)) running = false;
-                UI.SameLine(); UI.Label("Exit Game");
-                UI.WindowEnd();
-            }
-
-
-
-            return running;
         }
     }
 }
