@@ -6,7 +6,7 @@ The player receives vocal instructions and can use help in the form of localized
 
 hideNseek offers a config mode for the game master to prepare the scene by placing AR targets on points of interest and recording each object description.
 
-<a href="https://youtu.be/7C8ZRtQqREs" title="hideNseek video"><img src=""https://i9.ytimg.com/vi_webp/7C8ZRtQqREs/mqdefault.webp?v=618ec4bc&amp;sqp=CJDRu4wG&amp;rs=AOn4CLBU4OWNTooXLa6gSrbjdcByuBnlkA" alt="hideNseek, a Hololens experiment done with StereoKit" /></a>
+[![hideNseek video](https://i9.ytimg.com/vi_webp/7C8ZRtQqREs/mqdefault.webp?v=618ec4bc&amp;sqp=CJDRu4wG&amp;rs=AOn4CLBU4OWNTooXLa6gSrbjdcByuBnlkA)](https://youtu.be/7C8ZRtQqREs "Link Title")
 
 The app starts in config mode.
 
